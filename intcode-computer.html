@@ -67,14 +67,14 @@
                 mem[address] = val;
             }
 
-            const add = (m1, m2, m3) => write(read(m1) + read(m2), m3);
-            const mul = (m1, m2, m3) => write(read(m1) * read(m2), m3);
-            const getInput = (m1, m3) => write(parseInt(prompt('input?'), 10), m1);
-            const jnz = (m1, m2) => read(m1) !== 0 ? ptr = read(m2) : skip();
-            const jz = (m1, m2) => read(m1) === 0 ? ptr = read(m2) : skip();
-            const lt = (m1, m2, m3) => write(read(m1) < read(m2) ? 1 : 0, m3);
-            const eq = (m1, m2, m3) => write(read(m1) === read(m2) ? 1 : 0, m3);
-            const rel = (m1) => bas += read(m1);
+            const add = ([m1, m2, m3]) => write(read(m1) + read(m2), m3);
+            const mul = ([m1, m2, m3]) => write(read(m1) * read(m2), m3);
+            const inp = ([m1])         => write(parseInt(prompt('input?'), 10), m1);
+            const jnz = ([m1, m2])     => read(m1) !== 0 ? ptr = read(m2) : skip();
+            const jz =  ([m1, m2])     => read(m1) === 0 ? ptr = read(m2) : skip();
+            const lt =  ([m1, m2])     => write(read(m1) < read(m2) ? 1 : 0, m3);
+            const eq =  ([m1, m2, m3]) => write(read(m1) === read(m2) ? 1 : 0, m3);
+            const rel = ([m1])         => bas += read(m1);
 
             function runProgram() {
                 const programSrc = document.getElementById('program-src').value.trim();
@@ -83,23 +83,20 @@
                 let run = true;
 
                 while (run) {
-                    const inst = mem[ptr++] + '';
-                    const instLength = inst.length;
-                    const op = parseInt(inst.slice(instLength - 2), 10);
-                    const m1 = instLength > 2 ? parseInt(inst[instLength - 3]) : 0;
-                    const m2 = instLength > 3 ? parseInt(inst[instLength - 4]) : 0;
-                    const m3 = instLength > 4 ? parseInt(inst[instLength - 5]) : 0;
+                    const inst = String(mem[ptr++]).padStart(5 ,'0');
+                    const op = parseInt(inst.substring(3, 5), 10);
+                    const modes = inst.substring(0, 3).split('').map(m => parseInt(m, 10));
 
                     switch(op) {
-                        case 1: add(m1, m2, m3); break;
-                        case 2: mul(m1, m2, m3); break;
-                        case 3: getInput(m1, m3); break;
-                        case 4: out(read(m1)); break;
-                        case 5: jnz(m1, m2, m3); break;
-                        case 6: jz(m1, m2, m3); break;
-                        case 7: lt(m1, m2, m3); break;
-                        case 8: eq(m1, m2, m3); break;
-                        case 9: rel(m1); break;
+                        case 1: add(modes); break;
+                        case 2: mul(modes); break;
+                        case 3: inp(modes); break;
+                        case 4: out(read(modes)); break;
+                        case 5: jnz(modes); break;
+                        case 6: jz(modes); break;
+                        case 7: lt(modes); break;
+                        case 8: eq(modes); break;
+                        case 9: rel(modes); break;
 
                         case 99:
                             run = false;
