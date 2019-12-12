@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+        #program-src {
+            width: 640px;
+            height: 480px;
+            display: block;
+            margin-bottom: 6px;
+        }
+        #submit-button {
+            padding: 6px;
+        }
+        </style>
+        <script>
+        (function() {
+            const POSITION_MODE = 0;
+            const IMMEDIATE_MODE = 1;
+            const RELATIVE_MODE = 2;
+
+            const mem = [];
+            const output = [];
+            let ptr = 0;
+            let bas = 0;
+
+            function init(src) {
+                mem.length = 0;
+                mem.push(...src.split(',').map(x  => parseInt(x, 10)));
+                output.length = 0;
+                ptr = 0;
+            }
+
+            function handleKeydown(e) {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    runProgram();
+                }
+            }
+
+            function out(val) {
+                output.push(val);
+                document.getElementById('out').innerHTML = `<pre>${output.join(',')}</pre>`;
+            }
+
+            const next = () => mem[ptr++];
+            const skip = () => ptr++;
+
+            function read(mode) {
+                const val = next();
+
+                switch (mode) {
+                    case POSITION_MODE:  return mem[val] || 0;
+                    case IMMEDIATE_MODE: return val;
+                    case RELATIVE_MODE:  return mem[bas + val] || 0;
+                }
+            }
+
+            function getWriteAddress(mode = 1) {
+                switch (mode) {
+                    case POSITION_MODE:  return read(IMMEDIATE_MODE);
+                    case IMMEDIATE_MODE: return next();
+                    case RELATIVE_MODE:  return bas + read(IMMEDIATE_MODE);
+                }
+            }
+
+            const write = (val, mode) => {
+                const address = getWriteAddress(mode);
+                mem[address] = val;
+            }
+
+            const add = (m1, m2, m3) => write(read(m1) + read(m2), m3);
+            const mul = (m1, m2, m3) => write(read(m1) * read(m2), m3);
+            const getInput = (m1, m3) => write(parseInt(prompt('input?'), 10), m1);
+            const jnz = (m1, m2) => read(m1) !== 0 ? ptr = read(m2) : skip();
+            const jz = (m1, m2) => read(m1) === 0 ? ptr = read(m2) : skip();
+            const lt = (m1, m2, m3) => write(read(m1) < read(m2) ? 1 : 0, m3);
+            const eq = (m1, m2, m3) => write(read(m1) === read(m2) ? 1 : 0, m3);
+            const rel = (m1) => bas += read(m1);
+
+            function runProgram() {
+                const programSrc = document.getElementById('program-src').value.trim();
+                init(programSrc);
+
+                let run = true;
+
+                while (run) {
+                    const inst = mem[ptr++] + '';
+                    const instLength = inst.length;
+                    const op = parseInt(inst.slice(instLength - 2), 10);
+                    const m1 = instLength > 2 ? parseInt(inst[instLength - 3]) : 0;
+                    const m2 = instLength > 3 ? parseInt(inst[instLength - 4]) : 0;
+                    const m3 = instLength > 4 ? parseInt(inst[instLength - 5]) : 0;
+
+                    switch(op) {
+                        case 1: add(m1, m2, m3); break;
+                        case 2: mul(m1, m2, m3); break;
+                        case 3: getInput(m1, m3); break;
+                        case 4: out(read(m1)); break;
+                        case 5: jnz(m1, m2, m3); break;
+                        case 6: jz(m1, m2, m3); break;
+                        case 7: lt(m1, m2, m3); break;
+                        case 8: eq(m1, m2, m3); break;
+                        case 9: rel(m1); break;
+
+                        case 99:
+                            run = false;
+                            break;
+
+                        default:
+                            run = false;
+                            console.error('unknown opcode', op);
+                            break;
+                    }
+                }
+            }
+
+            function addListeners() {
+                document.getElementById('program-src').addEventListener('keydown', handleKeydown);
+                document.getElementById('submit-button').addEventListener('click', runProgram);
+
+            }
+
+            window.addListeners = addListeners;
+        })();
+        </script>
+    </head>
+    <body onload="addListeners()">
+        <div>
+            <textarea id="program-src" autofocus></textarea>
+            <button id="submit-button">Run Program (Ctrl+Enter)</button>
+        </div>
+        <h3>Output:</h3>
+        <div id="out"></div>
+    </body>
+</html>
