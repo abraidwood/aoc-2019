@@ -69,18 +69,20 @@
 
             const add = ([m1, m2, m3]) => write(read(m1) + read(m2), m3);
             const mul = ([m1, m2, m3]) => write(read(m1) * read(m2), m3);
-            const inp = ([m1])         => write(parseInt(prompt('input?'), 10), m1);
             const jnz = ([m1, m2])     => read(m1) !== 0 ? ptr = read(m2) : skip();
             const jz =  ([m1, m2])     => read(m1) === 0 ? ptr = read(m2) : skip();
-            const lt =  ([m1, m2])     => write(read(m1) < read(m2) ? 1 : 0, m3);
+            const lt =  ([m1, m2, m3])     => write(read(m1) < read(m2) ? 1 : 0, m3);
             const eq =  ([m1, m2, m3]) => write(read(m1) === read(m2) ? 1 : 0, m3);
             const rel = ([m1])         => bas += read(m1);
 
-            function runProgram() {
+            function runSingleIteration(input) {
                 const programSrc = document.getElementById('program-src').value.trim();
                 init(programSrc);
 
+                let iPtr = 0;
                 let run = true;
+
+                const readNextInput = () => input && input.length ? input[iPtr++] : prompt('input?');
 
                 while (run) {
                     const inst = String(mem[ptr++]).padStart(5 ,'0');
@@ -90,8 +92,8 @@
                     switch(op) {
                         case 1: add(modes); break;
                         case 2: mul(modes); break;
-                        case 3: inp(modes); break;
-                        case 4: out(read(modes)); break;
+                        case 3: write(parseInt(readNextInput(), 10), modes[0]); break;
+                        case 4: out(read(modes[0])); break;
                         case 5: jnz(modes); break;
                         case 6: jz(modes); break;
                         case 7: lt(modes); break;
@@ -108,12 +110,29 @@
                             break;
                     }
                 }
+                return output[output.length - 1];
+            }
+
+            function runLoop() {
+                const inputs = document.getElementById('inputs').value.trim().split(',');
+                let lastOutput;
+
+                for(let i=0;i<inputs.length;i++) {
+                    lastOutput = runSingleIteration([inputs[i], lastOutput === undefined ? 0 : lastOutput])
+                }
+
+                return lastOutput;
+            }
+
+            function runProgram() {
+                const manual = document.getElementById('run-manual').checked;
+                const result = manual ? runSingleIteration() : runLoop();
+                document.getElementById('out').innerHTML = `<pre>${result}</pre>`;
             }
 
             function addListeners() {
                 document.getElementById('program-src').addEventListener('keydown', handleKeydown);
                 document.getElementById('submit-button').addEventListener('click', runProgram);
-
             }
 
             window.addListeners = addListeners;
@@ -123,7 +142,9 @@
     <body onload="addListeners()">
         <div>
             <textarea id="program-src" autofocus></textarea>
+            <label>Inputs <input type="text" id="inputs" placeholder="comma separated integers"/></label>
             <button id="submit-button">Run Program (Ctrl+Enter)</button>
+            <label>Manual input? <input type="checkbox" id="run-manual" /></label>
         </div>
         <h3>Output:</h3>
         <div id="out"></div>
