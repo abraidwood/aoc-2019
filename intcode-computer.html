@@ -7,27 +7,69 @@
             height: 480px;
             display: block;
             margin-bottom: 6px;
+            margin-top: 40px;
         }
         #submit-button {
             padding: 6px;
         }
         </style>
         <script>
+        function getPermutations(arr) {
+            const result = [];
+
+            // Generating permutation using Heap Algorithm
+            function heapPermutation(a, size, n) {
+                // if size becomes 1 then prints the obtained
+                // permutation
+                if (size === 1) {
+                    result.push([...a]);
+                    return;
+                }
+
+                for (let i=0; i<size; i++) {
+                    heapPermutation(a, size-1, n);
+
+                    if (size%2 === 1) {
+                        // if size is odd, swap first and last
+                        // element
+                        const tmp = a[0];
+                        a[0] = a[size-1];
+                        a[size-1] = tmp;
+                    } else {
+                        // If size is even, swap ith and last
+                        // element
+                        const tmp = a[i];
+                        a[i] = a[size-1];
+                        a[size-1] = tmp;
+                    }
+                }
+            }
+
+            heapPermutation([...arr], 5);
+            return result;
+        }
+
         (function() {
             const POSITION_MODE = 0;
             const IMMEDIATE_MODE = 1;
             const RELATIVE_MODE = 2;
 
-            const mem = [];
-            const output = [];
-            let ptr = 0;
-            let bas = 0;
+            const createNewState = () => ({
+                mem: document.getElementById('program-src').value
+                    .replace(/\s+/g, '')
+                    .split(',')
+                    .map(x  => parseInt(x, 10)),
+                output: [],
+                ptr: 0,
+                bas: 0
+            });
 
-            function init(src) {
-                mem.length = 0;
-                mem.push(...src.split(',').map(x  => parseInt(x, 10)));
-                output.length = 0;
-                ptr = 0;
+            function createNStates(n) {
+                const states = [];
+                for(let i=0;i<n.length;i++) {
+                    states.push(createNewState());
+                }
+                return states;
             }
 
             function handleKeydown(e) {
@@ -36,97 +78,111 @@
                 }
             }
 
-            function out(val) {
-                output.push(val);
-                document.getElementById('out').innerHTML = `<pre>${output.join(',')}</pre>`;
-            }
+            const next = s => s.mem[s.ptr++];
+            const skip = s => s.ptr++;
 
-            const next = () => mem[ptr++];
-            const skip = () => ptr++;
-
-            function read(mode) {
-                const val = next();
+            function read(s, mode) {
+                const val = next(s);
 
                 switch (mode) {
-                    case POSITION_MODE:  return mem[val] || 0;
+                    case POSITION_MODE:  return s.mem[val] || 0;
                     case IMMEDIATE_MODE: return val;
-                    case RELATIVE_MODE:  return mem[bas + val] || 0;
+                    case RELATIVE_MODE:  return s.mem[s.bas + val] || 0;
                 }
             }
 
-            function getWriteAddress(mode = 1) {
+            function getWriteAddress(s, mode = 1) {
                 switch (mode) {
-                    case POSITION_MODE:  return read(IMMEDIATE_MODE);
-                    case IMMEDIATE_MODE: return next();
-                    case RELATIVE_MODE:  return bas + read(IMMEDIATE_MODE);
+                    case POSITION_MODE:  return read(s, IMMEDIATE_MODE);
+                    case IMMEDIATE_MODE: return next(s);
+                    case RELATIVE_MODE:  return s.bas + read(s, IMMEDIATE_MODE);
                 }
             }
 
-            const write = (val, mode) => {
-                const address = getWriteAddress(mode);
-                mem[address] = val;
+            const write = (s, mode, val) => {
+                const address = getWriteAddress(s, mode);
+                s.mem[address] = val;
             }
 
-            const add = ([m1, m2, m3]) => write(read(m1) + read(m2), m3);
-            const mul = ([m1, m2, m3]) => write(read(m1) * read(m2), m3);
-            const jnz = ([m1, m2])     => read(m1) !== 0 ? ptr = read(m2) : skip();
-            const jz =  ([m1, m2])     => read(m1) === 0 ? ptr = read(m2) : skip();
-            const lt =  ([m1, m2, m3])     => write(read(m1) < read(m2) ? 1 : 0, m3);
-            const eq =  ([m1, m2, m3]) => write(read(m1) === read(m2) ? 1 : 0, m3);
-            const rel = ([m1])         => bas += read(m1);
+            const nextOp = s => {
+                const inst = String(next(s)).padStart(5 ,'0');
+                const op = parseInt(inst.substring(3, 5), 10);
+                const mode = inst.substring(0, 3).split('').map(m => parseInt(m, 10)).reverse();
 
-            function runSingleIteration(input) {
-                const programSrc = document.getElementById('program-src').value.trim();
-                init(programSrc);
+                return { op, mode };
+            }
 
+            const add = (s, [m1, m2, m3]) => write(s, m3, read(s, m1) + read(s, m2));
+            const mul = (s, [m1, m2, m3]) => write(s, m3, read(s, m1) * read(s, m2));
+            const inp = (s, [m1], val)    => write(s, m1, parseInt(val, 10));
+            const out = (s, [m1])         => s.output.push(read(s, m1));
+            const jnz = (s, [m1, m2])     => read(s, m1) !== 0 ? s.ptr = read(s, m2) : skip(s);
+            const jz =  (s, [m1, m2])     => read(s, m1) === 0 ? s.ptr = read(s, m2) : skip(s);
+            const lt =  (s, [m1, m2, m3]) => write(s, m3, read(s, m1) < read(s, m2) ? 1 : 0);
+            const eq =  (s, [m1, m2, m3]) => write(s, m3, read(s, m1) === read(s, m2) ? 1 : 0);
+            const rel = (s, [m1])         => s.bas += read(s, m1);
+
+            function runSingleIteration(s = createNewState(), input) {
                 let iPtr = 0;
-                let run = true;
-
                 const readNextInput = () => input && input.length ? input[iPtr++] : prompt('input?');
 
-                while (run) {
-                    const inst = String(mem[ptr++]).padStart(5 ,'0');
-                    const op = parseInt(inst.substring(3, 5), 10);
-                    const modes = inst.substring(0, 3).split('').map(m => parseInt(m, 10));
+                while (true) {
+                    const { op, mode } = nextOp(s);
 
                     switch(op) {
-                        case 1: add(modes); break;
-                        case 2: mul(modes); break;
-                        case 3: write(parseInt(readNextInput(), 10), modes[0]); break;
-                        case 4: out(read(modes[0])); break;
-                        case 5: jnz(modes); break;
-                        case 6: jz(modes); break;
-                        case 7: lt(modes); break;
-                        case 8: eq(modes); break;
-                        case 9: rel(modes); break;
+                        case 1: add(s, mode); break;
+                        case 2: mul(s, mode); break;
+                        case 3: inp(s, mode, readNextInput()); break;
+                        case 4: out(s, mode); break;
+                        case 5: jnz(s, mode); break;
+                        case 6: jz (s, mode); break;
+                        case 7: lt (s, mode); break;
+                        case 8: eq (s, mode); break;
+                        case 9: rel(s, mode); break;
 
                         case 99:
-                            run = false;
-                            break;
+                            return s;
 
                         default:
-                            run = false;
-                            console.error('unknown opcode', op);
-                            break;
+                            throw new Error(`Unknown opcode = ${op}`);
                     }
                 }
-                return output[output.length - 1];
             }
 
-            function runLoop() {
-                const inputs = document.getElementById('inputs').value.trim().split(',');
+            function runFeedbackLoop(inputs, loopLength = 1) {
+                inputs = inputs || document.getElementById('inputs').value.trim().split(',');
                 let lastOutput;
+                const states = createNStates(inputs.length);
 
-                for(let i=0;i<inputs.length;i++) {
-                    lastOutput = runSingleIteration([inputs[i], lastOutput === undefined ? 0 : lastOutput])
+                for(let j=0;j<loopLength;j++) {
+                    for(let i=0;i<inputs.length;i++) {
+                        const input = [inputs[i], lastOutput === undefined ? 0 : lastOutput];
+                        lastOutput = runSingleIteration(states[i], input).output;
+                    }
                 }
 
                 return lastOutput;
             }
 
+            function runMaxTest() {
+                let max = -1;
+                let val;
+                const vals = [ 0, 1, 2, 3, 4];
+                const list = getPermutations(vals);
+
+                list.forEach(inputs => {
+                    const result = runLoop(inputs);
+                    console.log(inputs.join(','), result)
+                    if(result > max) {
+                        max = result;
+                    }
+                });
+                return max;
+            }
+
             function runProgram() {
-                const manual = document.getElementById('run-manual').checked;
-                const result = manual ? runSingleIteration() : runLoop();
+                const manual = true; // document.getElementById('run-manual').checked;
+                const result = manual ? runSingleIteration().output : runLoop();
                 document.getElementById('out').innerHTML = `<pre>${result}</pre>`;
             }
 
