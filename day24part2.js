@@ -1,3 +1,4 @@
+const t1 = performance.now();
 const inputStr = `
 ####.
 .##..
@@ -11,14 +12,16 @@ const input = inputStr.split('\n').map(line => line.split('').map(char => char =
 const width = input[0].length;
 const height = input.length;
 const length = width * height;
-const layerCount = 403;
+const layerCount = 203;
 const zeroLayer = Math.floor(layerCount / 2);
 
 const layer = Array(length * layerCount).fill(0);
 layer.splice(length * zeroLayer, length, ...input.flat());
+const layerLength = layer.length;
+
+const tN = performance.now();
 
 const neighbours = [];
-
 for(let d=0;d<=layerCount;d++) {
     const pos = d * length;
     const prevD = pos - length;
@@ -58,10 +61,14 @@ for(let d=0;d<=layerCount;d++) {
     }
 }
 
+const tNE = performance.now();
 const states = [
-    [...layer.flat()],
-    [...layer.flat()]
+    layer.slice(0),
+    layer.slice(0)
 ];
+
+let firstCell = length * zeroLayer - length;
+let lastCell = length * zeroLayer + 2 * length;
 
 let step=0;
 function run() {
@@ -69,20 +76,34 @@ function run() {
     const last = states[step%2];
     const next = states[(step+1)%2];
 
-    for(let i=0;i<last.length;i++) {
-        const current = last[i];
-        if (current === 2) {continue;}
-        const count = neighbours[i].reduce((acc, index) => acc + last[index]||0, 0);
-        let val;
-        if(current && count !== 1) {
-            val = 0;
-        } else if (!current && (count === 1 || count === 2)) {
-            val = 1;
-        } else {
-            val = current;
+    let newFirst = -1;
+    let newLast = length;
+
+    for(let i=firstCell;i<lastCell;i++) {
+        if (i%25 !== 12) {
+            const current = last[i];
+            const list = neighbours[i];
+            let count = 0;
+
+            for(let j=0;count<3 && j<list.length;j++) {
+                const k = list[j]
+                count += last[k];
+            }
+
+            if(current === 0) {
+                next[i] = count === 1 || count === 2 ? 1 : current;
+            } else {
+                next[i] = count !== 1 ? 0 : current;
+            }
+
+            if (next[i] === 1) {
+                newFirst = newFirst === -1 ? i : newFirst;
+                newLast = i;
+            }
         }
-        next[i] = val;
     }
+    firstCell = Math.max(0, length * (Math.floor(newFirst/length)-1));
+    lastCell = Math.min(layerLength, length * (Math.ceil(newLast/length)+1));
 }
 
 function print(depth, runNo) {
@@ -106,4 +127,5 @@ while(step<200) {
     run();
 }
 const bugs = states[(step+1)%2].reduce((a, x) => a + (x === 1 ? 1 : 0), 0);
+console.log(tNE - tN, performance.now() - t1)
 console.log(`Bugs: ${bugs}`);
